@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check-in semanal · Copiloto UX</title>
+<style>
+  :root{
+    --bg-page:#eef0f3;
+    --chat-bg:#15131f;
+    --chat-bubble-assistant:#232030;
+    --chat-bubble-user:#4b3fe0;
+    --accent:#4b3fe0;
+    --ontrack:#1f9d6e;
+    --ontrack-bg:#e4f6ee;
+    --blocked:#d34a3d;
+    --blocked-bg:#fbeae8;
+    --text-dark:#15131f;
+    --text-muted:#6b6875;
+    --paper:#ffffff;
+    --border:#e3e1e8;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg-page);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    color:var(--text-dark);
+    padding:32px 16px;
+  }
+  .wrap{
+    max-width:980px;
+    margin:0 auto;
+  }
+  .heading{
+    margin-bottom:20px;
+  }
+  .heading h1{
+    font-size:22px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .heading p{
+    margin:0;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width:820px){
+    .grid{grid-template-columns:1fr;}
+  }
+  /* CHAT PANEL */
+  .chat-panel{
+    background:var(--chat-bg);
+    border-radius:16px;
+    display:flex;
+    flex-direction:column;
+    height:600px;
+    overflow:hidden;
+  }
+  .chat-header{
+    padding:18px 20px 14px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .chat-header .title{
+    color:#fff;
+    font-size:15px;
+    font-weight:600;
+  }
+  .chat-header .sub{
+    color:rgba(255,255,255,0.45);
+    font-size:12px;
+    margin-top:2px;
+  }
+  .progress{
+    display:flex;
+    gap:6px;
+    margin-top:12px;
+  }
+  .dot{
+    flex:1;
+    height:3px;
+    border-radius:2px;
+    background:rgba(255,255,255,0.12);
+    transition:background .3s ease;
+  }
+  .dot.on{ background:var(--accent); }
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .bubble{
+    max-width:80%;
+    padding:10px 14px;
+    border-radius:14px;
+    font-size:13.5px;
+    line-height:1.5;
+    white-space:pre-wrap;
+  }
+  .bubble.assistant{
+    background:var(--chat-bubble-assistant);
+    color:#eceaf5;
+    align-self:flex-start;
+    border-bottom-left-radius:4px;
+  }
+  .bubble.user{
+    background:var(--chat-bubble-user);
+    color:#fff;
+    align-self:flex-end;
+    border-bottom-right-radius:4px;
+  }
+  .bubble.typing{
+    color:rgba(255,255,255,0.4);
+    font-style:italic;
+  }
+  .input-row{
+    display:flex;
+    gap:8px;
+    padding:14px 16px;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .input-row input{
+    flex:1;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12);
+    color:#fff;
+    padding:10px 12px;
+    border-radius:10px;
+    font-size:13.5px;
+    outline:none;
+  }
+  .input-row input::placeholder{ color:rgba(255,255,255,0.35); }
+  .input-row input:focus{ border-color:var(--accent); }
+  .input-row button{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:0 18px;
+    border-radius:10px;
+    font-size:13.5px;
+    font-weight:500;
+    cursor:pointer;
+  }
+  .input-row button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  /* SUMMARY PANEL */
+  .summary-panel{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:22px;
+    min-height:600px;
+    display:flex;
+    flex-direction:column;
+  }
+  .summary-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:18px;
+  }
+  .summary-header h2{
+    font-size:15px;
+    font-weight:600;
+    margin:0;
+  }
+  .summary-header .sub{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:2px;
+  }
+  .pill{
+    font-size:11px;
+    font-family:var(--font-mono);
+    padding:4px 10px;
+    border-radius:20px;
+    font-weight:600;
+    letter-spacing:0.02em;
+  }
+  .pill.ontrack{ background:var(--ontrack-bg); color:var(--ontrack); }
+  .pill.blocked{ background:var(--blocked-bg); color:var(--blocked); }
+  .pill.pending{ background:#f1f0f4; color:var(--text-muted); }
+  .field{
+    margin-bottom:16px;
+  }
+  .field label{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    color:var(--text-muted);
+    margin-bottom:4px;
+  }
+  .field .val{
+    font-size:13.5px;
+    line-height:1.5;
+    color:var(--text-dark);
+  }
+  .field .val.empty{
+    color:#c7c5cf;
+    font-style:italic;
+  }
+  .alert-banner{
+    display:none;
+    background:var(--blocked-bg);
+    color:var(--blocked);
+    border-radius:10px;
+    padding:10px 14px;
+    font-size:12.5px;
+    margin-bottom:16px;
+  }
+  .alert-banner.show{ display:block; }
+  .footnote{
+    margin-top:auto;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:11.5px;
+    color:var(--text-muted);
+    line-height:1.5;
+  }
+  .restart{
+    align-self:flex-start;
+    margin-top:14px;
+    background:none;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="heading">
+    <h1>Check-in semanal · prototipo funcional</h1>
+    <p>Conversa como si fueras un diseñador del equipo. El resumen de la derecha se genera solo — nada de formularios rígidos.</p>
+  </div>
+
+  <div class="grid">
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="title">Copiloto UX</div>
+        <div class="sub">Check-in de esta semana</div>
+        <div class="progress">
+          <div class="dot" data-dot="0"></div>
+          <div class="dot" data-dot="1"></div>
+          <div class="dot" data-dot="2"></div>
+          <div class="dot" data-dot="3"></div>
+          <div class="dot" data-dot="4"></div>
+        </div>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="input-row">
+        <input id="userInput" type="text" placeholder="Escribe tu respuesta..." />
+        <button id="sendBtn">Enviar</button>
+      </div>
+    </div>
+
+    <div class="summary-panel">
+      <div class="summary-header">
+        <div>
+          <h2>Informe de la semana</h2>
+          <div class="sub">Esto es lo que llegaría a tu página de informe</div>
+        </div>
+        <div class="pill pending" id="statusPill">Pendiente</div>
+      </div>
+
+      <div class="alert-banner" id="alertBanner">⚠ Bloqueo detectado — en producción esto dispara una notificación automática al líder del proyecto.</div>
+
+      <div class="field">
+        <label>DISEÑADOR</label>
+        <div class="val empty" id="f-nombre">— aún sin datos —</div>
+      </div>
+      <div class="field">
+        <label>PROYECTO</label>
+        <div class="val empty" id="f-proyecto">— aún sin datos —</div>
+      </div>
+      <div class="field">
+        <label>AVANCE ESTA SEMANA</label>
+        <div class="val empty" id="f-avance">— aún sin datos —</div>
+      </div>
+      <div class="field">
+        <label>BLOQUEOS</label>
+        <div class="val empty" id="f-bloqueos">— aún sin datos —</div>
+      </div>
+      <div class="field">
+        <label>PRÓXIMOS PASOS</label>
+        <div class="val empty" id="f-siguiente">— aún sin datos —</div>
+      </div>
+
+      <div class="footnote">
+        Esta versión no llama a ninguna API ni necesita servidor: la conversación sigue un guion fijo y las respuestas se guardan tal cual. Cero costo. Este resumen es justo lo que se guardaría en el Sheet que discutimos, y desde ahí alimentaría tu página de informe.
+      </div>
+      <button class="restart" id="restartBtn" style="display:none">Reiniciar conversación</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Versión sin costo: no llama a ninguna API externa.
+   La conversación sigue un guion fijo (4 preguntas) y las respuestas
+   se guardan textualmente — cero llaves, cero servidores, cero CORS. */
+
+const STEPS = [
+  { key: "nombre",         q: "Hola 👋 ¿cuál es tu nombre?" },
+  { key: "proyecto",       q: "¿En qué proyecto estuviste trabajando esta semana?" },
+  { key: "avance",         q: "¿Qué lograste avanzar esta semana en ese proyecto?" },
+  { key: "bloqueos",       q: "¿Tuviste algún bloqueo o necesitas ayuda de alguien?" },
+  { key: "proximos_pasos", q: "Por último, ¿cuáles son tus próximos pasos?" }
+];
+const NO_BLOCKER = /^(no|ningun[oa]?|nada|sin bloqueos?|todo bien|ninguno por ahora)\.?$/i;
+
+// Pega aquí la URL de tu Apps Script Web App cuando la despliegues.
+// Mientras esté vacía, el check-in funciona igual pero no guarda nada afuera.
+const SHEET_ENDPOINT = "";
+
+function sendToSheet(payload){
+  if (!SHEET_ENDPOINT) return;
+  // Sin header "Content-Type: application/json" a propósito: evita el preflight
+  // de CORS que Apps Script no maneja bien. Apps Script igual puede leer el body.
+  fetch(SHEET_ENDPOINT, { method: "POST", body: JSON.stringify(payload) })
+    .catch(err => console.error("No se pudo guardar en el Sheet:", err));
+}
+
+let history = [{ role: "assistant", content: STEPS[0].q }];
+let answers = {};
+let step = 0;
+let finished = false;
+
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+const restartBtn = document.getElementById("restartBtn");
+
+function renderMessages(){
+  messagesEl.innerHTML = "";
+  history.forEach(m => {
+    const div = document.createElement("div");
+    div.className = "bubble " + m.role;
+    div.textContent = m.content;
+    messagesEl.appendChild(div);
+  });
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showTyping(){
+  const div = document.createElement("div");
+  div.className = "bubble assistant typing";
+  div.id = "typingBubble";
+  div.textContent = "escribiendo...";
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function hideTyping(){
+  const t = document.getElementById("typingBubble");
+  if (t) t.remove();
+}
+
+function updateProgress(){
+  const filled = Math.min(step, STEPS.length);
+  document.querySelectorAll(".dot").forEach((d,i)=>{
+    d.classList.toggle("on", i < filled);
+  });
+}
+
+function fillEmpty(id, text){
+  const el = document.getElementById(id);
+  el.textContent = text && text.trim() ? text : "Sin novedades";
+  el.classList.remove("empty");
+}
+
+function renderSummary(){
+  fillEmpty("f-nombre", answers.nombre);
+  fillEmpty("f-proyecto", answers.proyecto);
+  fillEmpty("f-avance", answers.avance);
+  fillEmpty("f-bloqueos", answers.bloqueos);
+  fillEmpty("f-siguiente", answers.proximos_pasos);
+
+  const blocked = answers.bloqueos && answers.bloqueos.trim() && !NO_BLOCKER.test(answers.bloqueos.trim());
+  const pill = document.getElementById("statusPill");
+  const banner = document.getElementById("alertBanner");
+  if (blocked){
+    pill.textContent = "Bloqueado";
+    pill.className = "pill blocked";
+    banner.classList.add("show");
+  } else {
+    pill.textContent = "En curso";
+    pill.className = "pill ontrack";
+    banner.classList.remove("show");
+  }
+}
+
+function sendMessage(){
+  const text = inputEl.value.trim();
+  if (!text || finished) return;
+
+  history.push({ role: "user", content: text });
+  answers[STEPS[step].key] = text;
+  step++;
+  updateProgress();
+  renderMessages();
+  inputEl.value = "";
+  inputEl.disabled = true;
+  sendBtn.disabled = true;
+  showTyping();
+
+  // Pequeña pausa solo para que se sienta como una conversación, no una recarga instantánea.
+  setTimeout(() => {
+    hideTyping();
+    if (step < STEPS.length){
+      history.push({ role: "assistant", content: STEPS[step].q });
+      renderMessages();
+      inputEl.disabled = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+    } else {
+      finished = true;
+      history.push({ role: "assistant", content: "¡Listo! Ya tengo tu resumen de la semana → mira el panel de la derecha." });
+      renderMessages();
+      renderSummary();
+      const estado = (answers.bloqueos && answers.bloqueos.trim() && !NO_BLOCKER.test(answers.bloqueos.trim())) ? "blocked" : "on_track";
+      sendToSheet({ ...answers, estado });
+      inputEl.placeholder = "Check-in completado";
+      restartBtn.style.display = "inline-block";
+    }
+  }, 500);
+}
+
+function restart(){
+  history = [{ role: "assistant", content: STEPS[0].q }];
+  answers = {};
+  step = 0;
+  finished = false;
+  updateProgress();
+  renderMessages();
+  ["f-nombre","f-proyecto","f-avance","f-bloqueos","f-siguiente"].forEach(id=>{
+    const el = document.getElementById(id);
+    el.textContent = "— aún sin datos —";
+    el.classList.add("empty");
+  });
+  const pill = document.getElementById("statusPill");
+  pill.textContent = "Pendiente";
+  pill.className = "pill pending";
+  document.getElementById("alertBanner").classList.remove("show");
+  inputEl.placeholder = "Escribe tu respuesta...";
+  inputEl.disabled = false;
+  sendBtn.disabled = false;
+  restartBtn.style.display = "none";
+}
+
+sendBtn.addEventListener("click", sendMessage);
+inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
+restartBtn.addEventListener("click", restart);
+
+renderMessages();
+updateProgress();
+</script>
+</body>
+</html>
