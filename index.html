@@ -324,7 +324,7 @@ const NO_BLOCKER = /^(no|ningun[oa]?|nada|sin bloqueos?|todo bien|ninguno por ah
 
 // Pega aquí la URL de tu Apps Script Web App cuando la despliegues.
 // Mientras esté vacía, el check-in funciona igual pero no guarda nada afuera.
-const SHEET_ENDPOINT = "";
+const SHEET_ENDPOINT = "https://script.google.com/macros/s/AKfycbxBaaXfges4gP4PXUrco-cyp99r0fuVYUR-8f4v55n1qJneIDBET5B9USyhLSlTI7nB/exec";
 
 function sendToSheet(payload){
   if (!SHEET_ENDPOINT) return;
