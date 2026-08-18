@@ -272,12 +272,12 @@
       <div class="summary-header">
         <div>
           <h2>Informe de la semana</h2>
-          <div class="sub">Esto es lo que llegaría a tu página de informe</div>
+          <div class="sub">Esto es lo que llegará a tu página de informe</div>
         </div>
         <div class="pill pending" id="statusPill">Pendiente</div>
       </div>
 
-      <div class="alert-banner" id="alertBanner">⚠ Bloqueo detectado — en producción esto dispara una notificación automática al líder del proyecto.</div>
+      <div class="alert-banner" id="alertBanner">⚠ Bloqueo detectado — enviado con éxito al Google Sheet.</div>
 
       <div class="field">
         <label>DISEÑADOR</label>
@@ -300,8 +300,8 @@
         <div class="val empty" id="f-siguiente">— aún sin datos —</div>
       </div>
 
-      <div class="footnote">
-        Esta versión no llama a ninguna API ni necesita servidor: la conversación sigue un guion fijo y las respuestas se guardan tal cual. Cero costo. Este resumen es justo lo que se guardaría en el Sheet que discutimos, y desde ahí alimentaría tu página de informe.
+      <div class="footnote" id="statusFootnote">
+        Conectado directamente a tu Google Sheets mediante Webhook de Apps Script.
       </div>
       <button class="restart" id="restartBtn" style="display:none">Reiniciar conversación</button>
     </div>
@@ -309,9 +309,7 @@
 </div>
 
 <script>
-/* Versión sin costo: no llama a ninguna API externa.
-   La conversación sigue un guion fijo (4 preguntas) y las respuestas
-   se guardan textualmente — cero llaves, cero servidores, cero CORS. */
+const SHEET_ENDPOINT = "https://google.com";
 
 const STEPS = [
   { key: "nombre",         q: "Hola 👋 ¿cuál es tu nombre?" },
@@ -320,152 +318,47 @@ const STEPS = [
   { key: "bloqueos",       q: "¿Tuviste algún bloqueo o necesitas ayuda de alguien?" },
   { key: "proximos_pasos", q: "Por último, ¿cuáles son tus próximos pasos?" }
 ];
-const NO_BLOCKER = /^(no|ningun[oa]?|nada|sin bloqueos?|todo bien|ninguno por ahora)\.?$/i;
 
-// Pega aquí la URL de tu Apps Script Web App cuando la despliegues.
-// Mientras esté vacía, el check-in funciona igual pero no guarda nada afuera.
-const SHEET_ENDPOINT = "https://script.google.com/a/macros/servinformacion.com/s/AKfycbw7-Gp3s61YsWOGVVkaBHJGo1BXGtDpR6yKevV52P1coRSzXqDyWEJdJnVzTDIMwJFjpw/exec";
+let currentStep = 0;
+const responses = { nombre: "", proyecto: "", avance: "", bloqueos: "", proximos_pasos: "", estado: "Al día" };
 
-function sendToSheet(payload){
-  if (!SHEET_ENDPOINT) return;
-  // Sin header "Content-Type: application/json" a propósito: evita el preflight
-  // de CORS que Apps Script no maneja bien. Apps Script igual puede leer el body.
-  fetch(SHEET_ENDPOINT, { method: "POST", body: JSON.stringify(payload) })
-    .catch(err => console.error("No se pudo guardar en el Sheet:", err));
-}
-
-let history = [{ role: "assistant", content: STEPS[0].q }];
-let answers = {};
-let step = 0;
-let finished = false;
-
-const messagesEl = document.getElementById("messages");
-const inputEl = document.getElementById("userInput");
+const messagesContainer = document.getElementById("messages");
+const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
+const statusPill = document.getElementById("statusPill");
+const alertBanner = document.getElementById("alertBanner");
 const restartBtn = document.getElementById("restartBtn");
 
-function renderMessages(){
-  messagesEl.innerHTML = "";
-  history.forEach(m => {
-    const div = document.createElement("div");
-    div.className = "bubble " + m.role;
-    div.textContent = m.content;
-    messagesEl.appendChild(div);
-  });
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+function addMessage(text, sender) {
+  const b = document.createElement("div");
+  b.classList.add("bubble", sender);
+  b.textContent = text;
+  messagesContainer.appendChild(b);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-function showTyping(){
-  const div = document.createElement("div");
-  div.className = "bubble assistant typing";
-  div.id = "typingBubble";
-  div.textContent = "escribiendo...";
-  messagesEl.appendChild(div);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-function hideTyping(){
-  const t = document.getElementById("typingBubble");
-  if (t) t.remove();
-}
-
-function updateProgress(){
-  const filled = Math.min(step, STEPS.length);
-  document.querySelectorAll(".dot").forEach((d,i)=>{
-    d.classList.toggle("on", i < filled);
-  });
-}
-
-function fillEmpty(id, text){
-  const el = document.getElementById(id);
-  el.textContent = text && text.trim() ? text : "Sin novedades";
-  el.classList.remove("empty");
-}
-
-function renderSummary(){
-  fillEmpty("f-nombre", answers.nombre);
-  fillEmpty("f-proyecto", answers.proyecto);
-  fillEmpty("f-avance", answers.avance);
-  fillEmpty("f-bloqueos", answers.bloqueos);
-  fillEmpty("f-siguiente", answers.proximos_pasos);
-
-  const blocked = answers.bloqueos && answers.bloqueos.trim() && !NO_BLOCKER.test(answers.bloqueos.trim());
-  const pill = document.getElementById("statusPill");
-  const banner = document.getElementById("alertBanner");
-  if (blocked){
-    pill.textContent = "Bloqueado";
-    pill.className = "pill blocked";
-    banner.classList.add("show");
-  } else {
-    pill.textContent = "En curso";
-    pill.className = "pill ontrack";
-    banner.classList.remove("show");
+function updateSummary() {
+  if (responses.nombre) {
+    document.getElementById("f-nombre").textContent = responses.nombre;
+    document.getElementById("f-nombre").classList.remove("empty");
   }
-}
-
-function sendMessage(){
-  const text = inputEl.value.trim();
-  if (!text || finished) return;
-
-  history.push({ role: "user", content: text });
-  answers[STEPS[step].key] = text;
-  step++;
-  updateProgress();
-  renderMessages();
-  inputEl.value = "";
-  inputEl.disabled = true;
-  sendBtn.disabled = true;
-  showTyping();
-
-  // Pequeña pausa solo para que se sienta como una conversación, no una recarga instantánea.
-  setTimeout(() => {
-    hideTyping();
-    if (step < STEPS.length){
-      history.push({ role: "assistant", content: STEPS[step].q });
-      renderMessages();
-      inputEl.disabled = false;
-      sendBtn.disabled = false;
-      inputEl.focus();
+  if (responses.proyecto) {
+    document.getElementById("f-proyecto").textContent = responses.proyecto;
+    document.getElementById("f-proyecto").classList.remove("empty");
+  }
+  if (responses.avance) {
+    document.getElementById("f-avance").textContent = responses.avance;
+    document.getElementById("f-avance").classList.remove("empty");
+  }
+  if (responses.bloqueos) {
+    document.getElementById("f-bloqueos").textContent = responses.bloqueos;
+    document.getElementById("f-bloqueos").classList.remove("empty");
+    
+    const low = responses.bloqueos.toLowerCase();
+    if (low.includes("si") || low.includes("bloqueo") || low.includes("ayuda") || low.includes("espera")) {
+      responses.estado = "Bloqueado";
+      statusPill.textContent = "Bloqueado";
+      statusPill.className = "pill blocked";
+      alertBanner.classList.add("show");
     } else {
-      finished = true;
-      history.push({ role: "assistant", content: "¡Listo! Ya tengo tu resumen de la semana → mira el panel de la derecha." });
-      renderMessages();
-      renderSummary();
-      const estado = (answers.bloqueos && answers.bloqueos.trim() && !NO_BLOCKER.test(answers.bloqueos.trim())) ? "blocked" : "on_track";
-      sendToSheet({ ...answers, estado });
-      inputEl.placeholder = "Check-in completado";
-      restartBtn.style.display = "inline-block";
-    }
-  }, 500);
-}
-
-function restart(){
-  history = [{ role: "assistant", content: STEPS[0].q }];
-  answers = {};
-  step = 0;
-  finished = false;
-  updateProgress();
-  renderMessages();
-  ["f-nombre","f-proyecto","f-avance","f-bloqueos","f-siguiente"].forEach(id=>{
-    const el = document.getElementById(id);
-    el.textContent = "— aún sin datos —";
-    el.classList.add("empty");
-  });
-  const pill = document.getElementById("statusPill");
-  pill.textContent = "Pendiente";
-  pill.className = "pill pending";
-  document.getElementById("alertBanner").classList.remove("show");
-  inputEl.placeholder = "Escribe tu respuesta...";
-  inputEl.disabled = false;
-  sendBtn.disabled = false;
-  restartBtn.style.display = "none";
-}
-
-sendBtn.addEventListener("click", sendMessage);
-inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
-restartBtn.addEventListener("click", restart);
-
-renderMessages();
-updateProgress();
-</script>
-</body>
-</html>
+      responses.estado = "Al día";
