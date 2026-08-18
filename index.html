@@ -324,13 +324,13 @@ const NO_BLOCKER = /^(no|ningun[oa]?|nada|sin bloqueos?|todo bien|ninguno por ah
 
 // Pega aquí la URL de tu Apps Script Web App cuando la despliegues.
 // Mientras esté vacía, el check-in funciona igual pero no guarda nada afuera.
-const SHEET_ENDPOINT = "https://script.google.com/a/macros/servinformacion.com/s/AKfycbw7-Gp3s61YsWOGVVkaBHJGo1BXGtDpR6yKevV52P1coRSzXqDyWEJdJnVzTDIMwJFjpw/exec";
+const SHEET_ENDPOINT = "";
 
 function sendToSheet(payload){
   if (!SHEET_ENDPOINT) return;
-  // Sin header "Content-Type: application/json" a propósito: evita el preflight
-  // de CORS que Apps Script no maneja bien. Apps Script igual puede leer el body.
-  fetch(SHEET_ENDPOINT, { method: "POST", body: JSON.stringify(payload) })
+  // no-cors: no necesitamos leer la respuesta, solo que el POST llegue.
+  // Sin esto, cuentas de Google Workspace bloquean la lectura de la respuesta por CORS.
+  fetch(SHEET_ENDPOINT, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) })
     .catch(err => console.error("No se pudo guardar en el Sheet:", err));
 }
 
